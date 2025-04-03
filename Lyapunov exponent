@@ -1,0 +1,102 @@
+import math
+import matplotlib.pyplot as plt
+
+
+h = 1e-2          
+lambda_val = 0.   
+d = 2             
+E0 = 1/12.        
+dis = 1e-6        
+n = int(5e5)      
+Delta = 1e1       
+size = int(n/Delta)
+
+FILENAME1 = "resultados_lyapunov_E_1_10_0_1.dat"
+FILENAME2 = "ajuste_E_1_10_0.dat"
+
+def simplectico(x, p):
+    for j in range(d):
+        x[j] += h * p[j]
+    
+    if abs(x[0]) > 1e10 or abs(x[1]) > 1e10:
+        raise OverflowError("Valores de x fuera de rango")
+    
+    p[0] -= h * (x[0] + 2 * lambda_val * x[0] * x[1])
+    p[1] -= h * (x[1] + lambda_val * (x[0]**2 - x[1]**2))
+    
+    # Verificar que p no crezca demasiado
+    if abs(p[0]) > 1e10 or abs(p[1]) > 1e10:
+        raise OverflowError("Valores de p fuera de rango")
+
+def main():
+    salida1 = open(FILENAME1, "w")
+    salida2 = open(FILENAME2, "w")
+
+    # Initial conditions for base integration
+    x1 = [0.0, 0.0]    
+    p1 = [math.sqrt(2 * E0 - 0.0**2 - 0.0**2 + (2/3) * 0.0**3), 0.0]
+
+
+    x2 = x1[:]
+    x2[1] += dis
+    p2 = p1[:]
+
+    distancia = dis
+    k = 0.0
+    term = 0.0
+    epsilon = 1e-12  
+
+    for i in range(size):
+        try:
+            simplectico(x1, p1)  # base
+            simplectico(x2, p2)  # ghost
+
+            distancia = math.sqrt((x2[1] - x1[1])**2 + (x2[0] - x1[0])**2 + (p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
+
+            if distancia < epsilon:
+                distancia = epsilon
+
+            x2[0] = x1[0] + dis * ((x2[0] - x1[0]) / distancia)
+            x2[1] = x1[1] + dis * ((x2[1] - x1[1]) / distancia)
+            p2[0] = p1[0] + dis * ((p2[0] - p1[0]) / distancia)
+            p2[1] = p1[1] + dis * ((p2[1] - p1[1]) / distancia)
+
+            term += math.log(distancia / dis)
+            k = (1 / ((i + 1) * h * Delta)) * term
+            salida1.write(f"{(i + 1) * h * Delta}\t{distancia:.12f}\t{k:.12f}\n")
+
+            if (i + 1) * h * Delta >= 1e6 and n * h % (i + 1) * h * Delta == 0:
+                salida2.write(f"{(i + 1) * h * Delta}\t{k:.12f}\n")
+        
+        except OverflowError as e:
+            print(f"Error de desbordamiento en la iteración {i}: {e}")
+            break  
+
+    salida1.close()
+    salida2.close()
+
+    # Leer datos del archivo de salida 1
+    tiempos1, valores_k1 = leer_archivo(FILENAME1)
+
+    # Graficar los resultados
+    plt.plot(tiempos1, valores_k1)
+    plt.xlabel('t')
+    plt.ylabel(r'$k_n$')
+    plt.xscale('log')
+    plt.title('Lyapunov E = 1/8')
+    plt.grid(True)
+    plt.xlim(left=10^1) 
+    plt.show()
+
+def leer_archivo(nombre_archivo):
+    tiempos = []
+    valores_k = []
+    with open(nombre_archivo, 'r') as file:
+        for line in file:
+            tiempo, _, k = map(float, line.split())
+            tiempos.append(tiempo)
+            valores_k.append(k)
+    return tiempos, valores_k
+
+if __name__ == "__main__":
+    main()
